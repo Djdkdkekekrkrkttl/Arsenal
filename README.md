@@ -1,61 +1,41 @@
--- Configurações
-local ESP_COLOR = Color3.new(1, 0, 0)
-local MAX_DISTANCE = 2000
 
--- Serviços
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+local Tool = script.Parent
+local Player = game.Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local MaxDistance = 50 -- Distância máxima para detectar inimigos
 
--- Verifica se é inimigo
-local function IsEnemy(player)
-    if not LocalPlayer.Team or not player.Team then return false end
-    return LocalPlayer.Team ~= player.Team
-end
-
--- Sistema ESP
-local function UpdateESP()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer or not IsEnemy(player) then continue end
-        
-        local character = player.Character
-        if character and not character:FindFirstChild("Highlight") then
-            local highlight = Instance.new("Highlight")
-            highlight.FillColor = ESP_COLOR
-            highlight.OutlineColor = ESP_COLOR
-            highlight.Parent = character
-        end
-    end
-end
-
--- Mira automática em inimigos
-local function TeamAimbot()
-    local closestPos = nil
-    local closestDist = MAX_DISTANCE
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer or not IsEnemy(player) then continue end
-
-        local character = player.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            local rootPart = character.HumanoidRootPart
-            local distance = (LocalPlayer.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+local function findNearestEnemy()
+    local closest = nil
+    local closestDistance = MaxDistance
+    
+    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= Player and otherPlayer.Character then
+            local humanoid = otherPlayer.Character:FindFirstChild("Humanoid")
+            local rootPart = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
             
-            if distance < closestDist then
-                closestDist = distance
-                closestPos = rootPart.Position
+            if humanoid and humanoid.Health > 0 and rootPart then
+                local distance = (rootPart.Position - Player.Character.HumanoidRootPart.Position).Magnitude
+                
+                if distance < closestDistance then
+                    closest = rootPart
+                    closestDistance = distance
+                end
             end
         end
     end
-
-    if closestPos then
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestPos)
-    end
+    return closest
 end
 
--- Loop principal
-RunService.RenderStepped:Connect(function()
-    UpdateESP()
-    TeamAimbot()
+Tool.Equipped:Connect(function()
+    while Tool.Parent == Player.Character do
+        task.wait(0.1)
+        local target = findNearestEnemy()
+        
+        if target then
+            -- Mira na posição do inimigo
+            local targetPosition = target.Position
+            local cameraPosition = Camera.CFrame.Position
+            Camera.CFrame = CFrame.new(cameraPosition, targetPosition)
+        end
+    end
 end)
