@@ -1,254 +1,87 @@
--- Configurações iniciais
-local settings = {
-    esp = true,
-    aimbot = true,
-    max_distance = 1000,
-    esp_color = Color3.new(1, 0, 0)
-}
+-- Configurações
+local ESP_COLOR = Color3.new(1, 0, 0) -- Vermelho
+local MAX_DISTANCE = 2000 -- Unidades Roblox
 
 -- Serviços
-local players = game:GetService("Players")
-local run_service = game:GetService("RunService")
-local uis = game:GetService("UserInputService")
-local local_player = players.LocalPlayer
-local camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
--- Menu GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "ArsenalHaxGUI"
-gui.Parent = game.CoreGui
+-- Variáveis
+local ESPCache = {}
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 250)
-frame.Position = UDim2.new(0.5, -100, 0.5, -125)
-frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-frame.Parent = gui
-
--- Elementos do menu
-local elements = {
-    title = Instance.new("TextLabel"),
-    esp_toggle = Instance.new("TextButton"),
-    aimbot_toggle = Instance.new("TextButton"),
-    distance_slider = Instance.new("TextBox"),
-    color_picker = Instance.new("TextBox")
-}
-
--- Configura elementos
-local y_offset = 10
-for _, element in pairs(elements) do
-    element.Size = UDim2.new(0.9, 0, 0, 30)
-    element.Position = UDim2.new(0.05, 0, 0, y_offset)
-    element.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-    element.TextColor3 = Color3.new(1, 1, 1)
-    element.Font = Enum.Font.SourceSans
-    element.Parent = frame
-    y_offset = y_offset + 35
+-- Função para verificar inimigos
+local function IsEnemy(player)
+    if not LocalPlayer.Team or not player.Team then return true end
+    return LocalPlayer.Team ~= player.Team
 end
 
--- Personalização
-elements.title.Text = "Arsenal Script Menu (Right Shift)"
-elements.esp_toggle.Text = "ESP: ON"
-elements.aimbot_toggle.Text = "Aimbot: ON"
-elements.distance_slider.PlaceholderText = "Distância máxima: "..settings.max_distance
-elements.color_picker.PlaceholderText = "Cor (R,G,B): 1,0,0"
-
--- Funções do menu
-elements.esp_toggle.MouseButton1Click:Connect(function()
-    settings.esp = not settings.esp
-    elements.esp_toggle.Text = "ESP: "..(settings.esp and "ON" or "OFF")
-end)
-
-elements.aimbot_toggle.MouseButton1Click:Connect(function()
-    settings.aimbot = not settings.aimbot
-    elements.aimbot_toggle.Text = "Aimbot: "..(settings.aimbot and "ON" or "OFF")
-end)
-
-elements.distance_slider.FocusLost:Connect(function()
-    local num = tonumber(elements.distance_slider.Text)
-    if num and num > 0 then
-        settings.max_distance = num
-        elements.distance_slider.PlaceholderText = "Distância: "..num
+-- Sistema ESP
+local function UpdateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer or not player.Character then continue end
+        
+        local character = player.Character
+        local head = character:FindFirstChild("Head")
+        
+        if IsEnemy(player) and head then
+            if not ESPCache[player] then
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = ESP_COLOR
+                highlight.OutlineColor = ESP_COLOR
+                highlight.Parent = character
+                ESPCache[player] = highlight
+            end
+            
+            -- Atualiza visibilidade baseado na distância
+            local distance = (LocalPlayer.Character:GetPivot().Position - character:GetPivot().Position).Magnitude
+            ESPCache[player].Enabled = (distance <= MAX_DISTANCE)
+        elseif ESPCache[player] then
+            ESPCache[player]:Destroy()
+            ESPCache[player] = nil
+        end
     end
-    elements.distance_slider.Text = ""
-end)
-
-elements.color_picker.FocusLost:Connect(function()
-    local r, g, b = elements.color_picker.Text:match("([%d.]+),([%d.]+),([%d.]+)")
-    if r and g and b then
-        settings.esp_color = Color3.new(r, g, b)
-    end
-    elements.color_picker.Text = ""
-end)
-
--- Toggle menu com RightShift
-uis.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        frame.Visible = not frame.Visible
-    end
-end)
-
--- Sistema ESP e Aimbot (atualizado)
--- ... (Use o código da versão anterior aqui, substituindo as variáveis estáticas por 'settings')
-
--- Linkar configurações ao sistema
-local function is_enemy(player)
-    return player.Team ~= local_player.Team
 end
 
--- Função ESP modificada
-local function update_esp()
-    if not settings.esp then return end
-    -- ... (código ESP anterior usando settings.esp_color e settings.max_distance)
-end
-
--- Função Aimbot modificada
-local function aimbot()
-    if not settings.aimbot then return end
-    -- ... (código aimbot anterior usando settings.max_distance)
+-- Mira automática na cabeça
+local function AimAtHead()
+    local closestTarget = nil
+    local closestAngle = math.rad(5) -- Ângulo máximo de 5 graus
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer or not IsEnemy(player) then continue end
+        
+        local character = player.Character
+        if not character then continue end
+        
+        local head = character:FindFirstChild("Head")
+        if not head or not character:FindFirstChild("Humanoid") or character.Humanoid.Health <= 0 then continue end
+        
+        -- Cálculo de ângulo na tela
+        local headPosition = head.Position
+        local screenPos, onScreen = Camera:WorldToViewportPoint(headPosition)
+        
+        if onScreen then
+            local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+            local mousePos = Vector2.new(screenPos.X, screenPos.Y)
+            local angle = (mousePos - center).Magnitude
+            
+            if angle < closestAngle then
+                closestAngle = angle
+                closestTarget = headPosition
+            end
+        end
+    end
+    
+    -- Atualiza mira
+    if closestTarget then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestTarget)
+    end
 end
 
 -- Loop principal
-run_service.RenderStepped:Connect(function()
-    update_esp()
-    if settings.aimbot then
-        aimbot()
-    end
-end)-- Configurações iniciais
-local settings = {
-    esp = true,
-    aimbot = true,
-    max_distance = 1000,
-    esp_color = Color3.new(1, 0, 0)
-}
-
--- Serviços
-local players = game:GetService("Players")
-local run_service = game:GetService("RunService")
-local uis = game:GetService("UserInputService")
-local local_player = players.LocalPlayer
-local camera = workspace.CurrentCamera
-
--- Menu GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "ArsenalHaxGUI"
-gui.Parent = game.CoreGui
-
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 250)
-frame.Position = UDim2.new(0.5, -100, 0.5, -125)
-frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-frame.Parent = gui
-
--- Elementos do menu
-local elements = {
-    title = Instance.new("TextLabel"),
-    esp_toggle = Instance.new("TextButton"),
-    aimbot_toggle = Instance.new("TextButton"),
-    distance_slider = Instance.new("TextBox"),
-    color_picker = Instance.new("TextBox")
-}
-
--- Configura elementos
-local y_offset = 10
-for _, element in pairs(elements) do
-    element.Size = UDim2.new(0.9, 0, 0, 30)
-    element.Position = UDim2.new(0.05, 0, 0, y_offset)
-    element.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-    element.TextColor3 = Color3.new(1, 1, 1)
-    element.Font = Enum.Font.SourceSans
-    element.Parent = frame
-    y_offset = y_offset + 35
-end
-
--- Personalização
-elements.title.Text = "Arsenal Script Menu (Right Shift)"
-elements.esp_toggle.Text = "ESP: ON"
-elements.aimbot_toggle.Text = "Aimbot: ON"
-elements.distance_slider.PlaceholderText = "Distância máxima: "..settings.max_distance
-elements.color_picker.PlaceholderText = "Cor (R,G,B): 1,0,0"
-
--- Funções do menu
-elements.esp_toggle.MouseButton1Click:Connect(function()
-    settings.esp = not settings.esp
-    elements.esp_toggle.Text = "ESP: "..(settings.esp and "ON" or "OFF")
-end)
-
-elements.aimbot_toggle.MouseButton1Click:Connect(function()
-    settings.aimbot = not settings.aimbot
-    elements.aimbot_toggle.Text = "Aimbot: "..(settings.aimbot and "ON" or "OFF")
-end)
-
-elements.distance_slider.FocusLost:Connect(function()
-    local num = tonumber(elements.distance_slider.Text)
-    if num and num > 0 then
-        settings.max_distance = num
-        elements.distance_slider.PlaceholderText = "Distância: "..num
-    end
-    elements.distance_slider.Text = ""
-end)
-
-elements.color_picker.FocusLost:Connect(function()
-    local r, g, b = elements.color_picker.Text:match("([%d.]+),([%d.]+),([%d.]+)")
-    if r and g and b then
-        settings.esp_color = Color3.new(r, g, b)
-    end
-    elements.color_picker.Text = ""
-end)
-
--- Toggle menu com RightShift
-uis.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        frame.Visible = not frame.Visible
-    end
-end)
-
--- Sistema ESP e Aimbot (atualizado)
--- ... (Use o código da versão anterior aqui, substituindo as variáveis estáticas por 'settings')
-
--- Linkar configurações ao sistema
-local function is_enemy(player)
-    return player.Team ~= local_player.Team
-end
-
--- Função ESP modificada
-local function update_esp()
-    if not settings.esp then return end
-    -- ... (código ESP anterior usando settings.esp_color e settings.max_distance)
-end
-
--- Função Aimbot modificada
-local function aimbot()
-    if not settings.aimbot then return end
-    -- ... (código aimbot anterior usando settings.max_distance)
-end 
--- Adicione esta parte após criar o 'gui'
-local mobileToggleButton = Instance.new("TextButton")
-mobileToggleButton.Size = UDim2.new(0, 50, 0, 50)
-mobileToggleButton.Position = UDim2.new(0.95, -60, 0.9, -60) -- Canto inferior direito
-mobileToggleButton.Text = "☰"
-mobileToggleButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-mobileToggleButton.TextColor3 = Color3.new(1, 1, 1)
-mobileToggleButton.Parent = gui
-
--- Altere esta parte da conexão de input
-mobileToggleButton.MouseButton1Click:Connect(function()
-    frame.Visible = not frame.Visible
-    mobileToggleButton.Visible = not frame.Visible -- Esconde o botão quando o menu está aberto
-end)
-
--- Garanta que o menu comece oculto
-frame.Visible = false
-mobileToggleButton.Visible = true
-local y_offset = 15
-for _, element in pairs(elements) do
-    element.Position = UDim2.new(0.05, 0, 0, y_offset)
-    y_offset = y_offset + 50 -- Mais espaço entre elementos
-end
-
--- Loop principal
-run_service.RenderStepped:Connect(function()
-    update_esp()
-    if settings.aimbot then
-        aimbot()
-    end
+RunService.RenderStepped:Connect(function()
+    UpdateESP()
+    AimAtHead()
 end)
