@@ -1,31 +1,41 @@
--- Configurações básicas
+-- Configurações
 local ESP_COLOR = Color3.new(1, 0, 0)
 local MAX_DISTANCE = 2000
 
--- Serviços essenciais
+-- Serviços
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Sistema ESP simplificado
-local function CreateESP(player)
-    if player == LocalPlayer then return end
-    
-    local highlight = Instance.new("Highlight")
-    highlight.FillColor = ESP_COLOR
-    highlight.OutlineColor = ESP_COLOR
-    highlight.Parent = player.Character
-    return highlight
+-- Verifica se é inimigo
+local function IsEnemy(player)
+    if not LocalPlayer.Team or not player.Team then return false end
+    return LocalPlayer.Team ~= player.Team
 end
 
--- Mira automática básica (corpo inteiro)
-local function SimpleAimbot()
+-- Sistema ESP
+local function UpdateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer or not IsEnemy(player) then continue end
+        
+        local character = player.Character
+        if character and not character:FindFirstChild("Highlight") then
+            local highlight = Instance.new("Highlight")
+            highlight.FillColor = ESP_COLOR
+            highlight.OutlineColor = ESP_COLOR
+            highlight.Parent = character
+        end
+    end
+end
+
+-- Mira automática em inimigos
+local function TeamAimbot()
     local closestPos = nil
     local closestDist = MAX_DISTANCE
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
+        if player == LocalPlayer or not IsEnemy(player) then continue end
 
         local character = player.Character
         if character and character:FindFirstChild("HumanoidRootPart") then
@@ -44,17 +54,8 @@ local function SimpleAimbot()
     end
 end
 
--- Loop principal otimizado
+-- Loop principal
 RunService.RenderStepped:Connect(function()
-    -- Atualiza ESP
-    for _, player in ipairs(Players:GetPlayers()) do
-        if not player.Character or player == LocalPlayer then continue end
-        
-        if not player.Character:FindFirstChild("Highlight") then
-            CreateESP(player)
-        end
-    end
-
-    -- Atualiza mira
-    SimpleAimbot()
+    UpdateESP()
+    TeamAimbot()
 end)
